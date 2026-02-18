@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulateur Entretien Opérateur Vidéoprotection</title>
+    
+    <!-- Librairies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+        /* --- CSS VARIABLES & RESET --- */
+        :root {
+            --primary: #4F46E5;
+            --primary-dark: #4338ca;
+            --secondary: #10B981;
+            --bg-color: #F3F4F6;
+            --card-bg: #ffffff;
+            --text-main: #1F2937;
+            --text-light: #6B7280;
+            --danger: #EF4444;
+            --radius: 12px;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --transition: all 0.3s ease;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius);
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn:disabled { background-color: #E5E7EB; color: #9CA3AF; cursor: not-allowed; transform: none; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: var(--primary-dark); transform: translateY(-2px); }
+        .btn-secondary { background-color: var(--card-bg); color: var(--text-main); border: 1px solid #E5E7EB; }
+        .btn-secondary:hover { background-color: #F9FAFB; }
+        .btn-danger { background-color: var(--danger); color: white; }
+        .btn-outline { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: white; }
+        .btn-outline:hover { background: rgba(255,255,255,0.1); }
+
+        .input-field {
+            width: 100%; padding: 12px; border: 2px solid #E5E7EB; border-radius: var(--radius);
+            font-size: 1rem; transition: var(--transition); outline: none;
+            background-color: white;
+        }
+        .input-field:focus { border-color: var(--primary); }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 2rem;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            margin: auto;
+        }
+        
+        /* Style spécifique pour l'image de la landing page */
+        .landing-img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            /* Force l'affichage au cas où une classe parente serait cachée */
+            display: block !important; 
+            max-width: 100%;
+        }
+
+        #app-container { flex: 1; position: relative; width: 100%; height: 100%; }
+
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.5s ease-in-out;
+            padding: 20px; z-index: 1;
+        }
+        .screen.active { opacity: 1; pointer-events: all; z-index: 10; }
+
+        .hero-title { font-size: 2.5rem; margin-bottom: 1rem; color: var(--primary); }
+        .hero-desc { margin-bottom: 2rem; color: var(--text-light); line-height: 1.6; }
+        .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; width: 100%; max-width: 900px; margin-top: 2rem; }
+        .mode-card {
+            background: white; padding: 2rem; border-radius: var(--radius);
+            box-shadow: var(--shadow); cursor: pointer; transition: var(--transition);
+            border: 2px solid transparent;
+        }
+        .mode-card:hover { transform: translateY(-5px); border-color: var(--primary); }
+        .mode-icon { font-size: 3rem; margin-bottom: 1rem; display: block; }
+
+        .profile-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px; width: 100%; max-width: 1000px; padding: 20px; overflow-y: auto;
+            max-height: 70vh;
+            /* Centrage horizontal des cartes */
+            justify-content: center;
+        }
+
+        /* Style pour le texte explicatif ajouté */
+        .profile-intro {
+            text-align: center;
+            max-width: 700px;
+            margin-bottom: 2rem;
+            color: var(--text-light);
+            line-height: 1.6;
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+        .profile-intro p { margin-bottom: 0.8rem; }
+        .profile-intro p:last-child { margin-bottom: 0; }
+        .profile-intro strong { color: var(--primary); }
+
+        .profile-card {
+            background: white; border-radius: var(--radius); padding: 1.5rem;
+            display: flex; flex-direction: column; align-items: center;
+            box-shadow: var(--shadow); cursor: pointer; border: 2px solid transparent;
+            transition: var(--transition);
+        }
+        .profile-card.selected { border-color: var(--secondary); background-color: #ECFDF5; transform: scale(1.02); }
+        .avatar { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 1rem; border: 3px solid var(--bg-color); }
+        .profile-role { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; padding: 4px 8px; border-radius: 20px; margin-bottom: 0.5rem; font-weight: bold; }
+        .role-rh { background-color: #DBEAFE; color: #1E40AF; }
+        .role-tech { background-color: #FEE2E2; color: #991B1B; }
+
+        /* --- LATERAL ARENA --- */
+        .arena-container {
+            width: 100%; max-width: 1400px; height: 90vh;
+            display: flex;
+            flex-direction: row;
+            background: white; border-radius: 20px; overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            border: 1px solid #E5E7EB;
+            margin: 20px auto;
+        }
+        
+        .interview-stage {
+            background-color: #111827;
+            width: 350px;
+            min-width: 300px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: white; padding: 20px;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .stage-avatar { width: 120px; height: 120px; border-radius: 50%; border: 3px solid var(--primary); margin-bottom: 1rem; transition: all 0.3s; }
+        .speaking .stage-avatar { border-color: var(--secondary); box-shadow: 0 0 30px rgba(16, 185, 129, 0.6); }
+        .interviewer-info { text-align: center; width: 100%; }
+        .stage-name { font-size: 1.3rem; font-weight: bold; margin-bottom: 5px; }
+        .stage-role { font-size: 0.9rem; opacity: 0.8; background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 10px; display: inline-block; }
+        
+        .question-bubble { 
+            background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 15px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.2); font-size: 1rem; text-align: left; margin-top: 20px; width: 100%; font-style: italic;
+        }
+
+        .btn-back-interview {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
+            color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; z-index: 20;
+        }
+        .btn-back-interview:hover { background: rgba(255,255,255,0.2); }
+
+        .controls-area { 
+            flex: 1; padding: 40px; background: #F9FAFB; 
+            display: flex; flex-direction: column; gap: 25px; 
+            overflow-y: auto; align-items: center; justify-content: flex-start;
+        }
+        
+        .progress-header { width: 100%; max-width: 600px; display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+        .progress-bar { flex: 1; height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+        
+        .input-mode-switch {
+            display: flex; background: #E5E7EB; padding: 4px; border-radius: 50px; width: fit-content; margin: 0 auto;
+        }
+        .switch-btn {
+            padding: 10px 24px; border-radius: 40px; border: none; cursor: pointer; font-weight: 600; color: var(--text-light); background: transparent; transition: var(--transition);
+        }
+        .switch-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        .text-input-container {
+            background: white; border-radius: var(--radius); padding: 25px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); display: none;
+            width: 100%; max-width: 800px; box-sizing: border-box; border: 1px solid #E5E7EB;
+        }
+        .text-input-container.active { display: block; border-color: var(--primary); }
+        textarea.answer-area {
+            width: 100%; height: 150px; padding: 15px; border: 2px solid #E5E7EB; border-radius: 8px;
+            resize: none; font-size: 1.1rem; font-family: inherit; margin-top: 10px;
+        }
+        textarea.answer-area:focus { border-color: var(--primary); outline: none; }
+
+        .recorder-ui {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+            width: 100%; max-width: 800px; display: none;
+        }
+        .recorder-ui.active { display: flex; }
+        
+        .recorder-controls { display: flex; align-items: center; gap: 20px; background: white; padding: 15px 30px; border-radius: 50px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #E5E7EB; }
+        
+        .record-btn { width: 70px; height: 70px; border-radius: 50%; border: none; background: var(--danger); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .record-btn:hover { transform: scale(1.1); }
+        .record-btn.recording { animation: pulse 1.5s infinite; background: #991B1B; }
+        .timer { font-family: monospace; font-size: 1.5rem; font-weight: bold; color: var(--text-light); min-width: 80px; }
+
+        #webcam-preview {
+            width: 100%; 
+            max-width: 480px; 
+            height: 270px; 
+            border-radius: var(--radius);
+            background-color: #000000; 
+            transform: scaleX(-1); 
+            margin-bottom: 10px; 
+            display: none; 
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); 
+            border: 4px solid var(--primary); 
+            object-fit: cover;
+        }
+
+        .result-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 2rem; }
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-left: 4px solid var(--primary); animation: slideIn 0.3s ease; display: flex; align-items: center; gap: 10px; }
+
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        @media (max-width: 900px) {
+            .arena-container { flex-direction: column; height: auto; min-height: 90vh; margin: 10px; }
+            .interview-stage { width: 100%; padding: 20px; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); }
+            .controls-area { padding: 20px; height: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <main id="app-container">
+        <!-- SCREEN 1: HOME -->
+        <section id="screen-home" class="screen active">
+            <div class="card">
+                <!-- Image Illustrative : Mur de moniteurs (Vidéoprotection) -->
+                <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1000&auto=format&fit=crop" alt="Poste de Vidéoprotection" class="landing-img">
+                
+                <h1 class="hero-title">Simulateur d'Entretien</h1>
+                <h2 style="color: var(--primary); margin-bottom: 0.5rem;">Opérateur en Vidéoprotection</h2>
+                <p class="hero-desc">Préparez-vous efficacement pour votre recrutement dans le secteur de la vidéoprotection. Entraînez-vous aux questions RH et techniques.</p>
+                
+                <div style="text-align: left;">
+                    <label style="font-weight: bold; color: var(--text-main);">Votre nom :</label>
+                    <input type="text" id="user-name" class="input-field" placeholder="Ex: Jean Dupont" style="margin-top: 5px;">
+                </div>
+                <button class="btn btn-primary btn-block" style="margin-top: 1.5rem; width: 100%;" onclick="app.goToModeSelection()">Commencer l'entraînement</button>
+            </div>
+        </section>
+
+        <!-- SCREEN 2: MODE -->
+        <section id="screen-mode" class="screen">
+            <h2>Choisissez le type d'entretien</h2>
+            <div class="mode-grid">
+                <div class="mode-card" onclick="app.selectMode('RH')"><span class="mode-icon">👔</span><h3>Ressources Humaines</h3></div>
+                <div class="mode-card" onclick="app.selectMode('TECH')"><span class="mode-icon">🛡️</span><h3>Technique (Métier)</h3></div>
+                <div class="mode-card" onclick="app.selectMode('MIX')"><span class="mode-icon">🤝</span><h3>Mixte (Complet)</h3></div>
+            </div>
+            <button class="btn btn-secondary" style="margin-top: 2rem;" onclick="app.showScreen('screen-home')">Retour</button>
+        </section>
+
+        <!-- SCREEN 3: PROFILES -->
+        <section id="screen-profile" class="screen">
+            <h2 style="margin-bottom: 1rem;">Sélectionnez votre interlocuteur</h2>
+            
+            <!-- Texte explicatif -->
+            <div class="profile-intro">
+                <p><strong>Ressources Humaines (RH) :</strong> Ces recruteurs évaluent votre <strong>motivation</strong>, votre <strong>savoir-être</strong> et votre capacité à travailler en équipe. Attendez-vous à des questions comportementales.</p>
+                <p><strong>Technicien (Métier) :</strong> Ces recruteurs jugent vos <strong>connaissances techniques</strong> (analyse vidéo, gestion des flux), votre <strong>rigueur</strong> et votre réactivité.</p>
+            </div>
+
+            <div id="profile-list" class="profile-grid"></div>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button class="btn btn-secondary" onclick="app.showScreen('screen-mode')">Retour</button>
+                <button id="btn-start-interview" class="btn btn-primary" disabled onclick="app.startInterview()">Lancer l'entretien</button>
+            </div>
+        </section>
+
+        <!-- SCREEN 4: ARENA -->
+        <section id="screen-arena" class="screen">
+            <div class="arena-container">
+                <!-- GAUCHE -->
+                <div class="interview-stage" id="interview-stage">
+                    <button class="btn-back-interview" onclick="app.stopAndReturn()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 5 5 5 12 19 12 19 5"></polyline></svg>
+                        Retour
+                    </button>
+                    <img src="" alt="Interviewer" class="stage-avatar" id="stage-avatar">
+                    <div class="interviewer-info">
+                        <h2 id="stage-name" class="stage-name">Nom</h2>
+                        <span id="stage-role" class="stage-role">Rôle</span>
+                    </div>
+                    <div class="question-bubble" id="question-text">Question...</div>
+                </div>
+
+                <!-- DROITE -->
+                <div class="controls-area">
+                    <div class="progress-header">
+                        <span id="q-progress" style="font-weight:bold; min-width: 60px;">1/5</span>
+                        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+                    </div>
+                    <div id="status-message" style="color: var(--text-light); font-size: 0.9rem; text-align: center;"></div>
+                    
+                    <div class="input-mode-switch">
+                        <button id="mode-audio-btn" class="switch-btn active" onclick="interviewEngine.setInputMode('audio')">🎤 Audio</button>
+                        <button id="mode-video-btn" class="switch-btn" onclick="interviewEngine.setInputMode('video')">📹 Vidéo</button>
+                        <button id="mode-text-btn" class="switch-btn" onclick="interviewEngine.setInputMode('text')">⌨️ Texte</button>
+                    </div>
+
+                    <div id="recorder-container" class="recorder-ui">
+                        <video id="webcam-preview" autoplay muted playsinline></video>
+                        <div class="recorder-controls">
+                            <button class="btn btn-secondary" style="padding: 8px 12px;" onclick="interviewEngine.replayQuestion()">🔁</button>
+                            <button id="record-btn" class="record-btn" onclick="interviewEngine.toggleRecording()">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                            </button>
+                            <span class="timer" id="timer">00:00</span>
+                        </div>
+                    </div>
+
+                    <div id="text-input-ui" class="text-input-container">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <button class="btn btn-secondary" onclick="interviewEngine.replayQuestion()">🔁 Réécouter</button>
+                            <span style="font-size:0.8rem; color:var(--text-light)">Min. 20 caractères</span>
+                        </div>
+                        <textarea id="answer-text-area" class="answer-area" placeholder="Saisissez votre réponse ici..."></textarea>
+                    </div>
+
+                    <button id="btn-next-q" class="btn btn-primary" style="padding: 12px 40px; font-size: 1.1rem;" onclick="interviewEngine.submitAnswer()" disabled>Valider & Continuer</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- SCREEN 5: RESULTS -->
+        <section id="screen-results" class="screen">
+            <div class="card">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
+                <h2>Entraînement Terminé !</h2>
+                <p style="margin: 1rem 0;">Votre session a été enregistrée.</p>
+                <div style="background: #F3F4F6; padding: 15px; border-radius: 8px; margin-bottom: 2rem; text-align: left;">
+                    <p><strong>Métier :</strong> <span id="res-job"></span></p>
+                    <p><strong>Mode :</strong> <span id="res-mode"></span></p>
+                    <p><strong>Questions traitées :</strong> <span id="res-count"></span></p>
+                </div>
+                <div class="result-actions"></div>
+                <button class="btn btn-secondary" style="margin-top: 20px;" onclick="location.reload()">🔄 Nouvel entraînement</button>
+            </div>
+        </section>
+    </main>
+
+    <audio id="audio-player" style="display:none;"></audio>
+
+    <script>
+        // --- LISTE DES MÉTIERS (Utilisé pour la détection interne) ---
+        const JOB_TITLES = [
+            "Opérateur en Vidéoprotection"
+        ];
+
+        // --- QUESTIONS RH (VIDÉOPROTECTION) ---
+        const SECURITY_QUESTIONS_RH = [
+            "Qu’est ce qui vous a motivé à vous orienter vers la vidéoprotection plutôt qu’un autre métier de la sécurité ?",
+            "Comment décririez vous votre capacité à rester concentré pendant de longues périodes devant des écrans ?",
+            "Comment réagissez vous lorsque vous êtes confronté à une situation sensible ou potentiellement choquante sur les images ?",
+            "Pouvez vous me parler d’une situation où vous avez dû faire preuve d’un grand sens de l’observation ?",
+            "Comment vous assurez vous de respecter des règles strictes de confidentialité et de discrétion ?",
+            "Comment travaillez vous en équipe dans un environnement où chacun dépend de la vigilance des autres ?",
+            "Comment réagissez vous lorsqu’une consigne change ou qu’une nouvelle procédure est mise en place ?",
+            "Comment gérez vous une situation où vous avez un doute sur ce que vous observez ?",
+            "Qu’attendez vous de votre premier employeur en vidéoprotection ?",
+            "Quels sont, selon vous, les comportements indispensables pour travailler en vidéoprotection ?"
+        ];
+
+        // --- 20 Questions Techniques Spécifiques ---
+        const SECURITY_QUESTIONS_TECH = [
+            "Comment procédez vous pour analyser une image en temps réel afin de détecter une anomalie ?",
+            "Quels sont les éléments visuels que vous vérifiez en priorité lorsqu’une situation semble suspecte ?",
+            "Comment distinguez vous un comportement inhabituel d’un comportement réellement dangereux ?",
+            "Que faites vous si une caméra présente un angle mort ou une zone non visible ?",
+            "Comment procédez vous pour recouper des informations entre plusieurs caméras ?",
+            "Comment gérez vous plusieurs flux vidéo simultanés lors d’un événement en cours ?",
+            "Comment vérifiez vous la cohérence entre ce que vous observez et les informations reçues (appel, alarme, signalement) ?",
+            "Comment procédez vous pour suivre un individu ou un véhicule sur plusieurs caméras ?",
+            "Que faites vous si vous observez un acte potentiellement délictueux mais sans certitude absolue ?",
+            "Comment structurez vous un signalement destiné aux forces de l’ordre ou à une équipe d’intervention ?",
+            "Comment rédigez vous une main courante vidéo pour qu’elle soit exploitable par la relève ou la hiérarchie ?",
+            "Comment gérez vous une situation où plusieurs événements se produisent en même temps sur différents secteurs ?",
+            "Comment procédez vous pour vérifier qu’un site est revenu à un état normal après un incident ?",
+            "Comment identifiez vous un dysfonctionnement technique sur une caméra (image dégradée, latence, perte de signal) ?",
+            "Comment adaptez vous votre analyse lorsque la visibilité est réduite (nuit, pluie, contre jour) ?",
+            "Comment gérez vous une demande d’un partenaire (police municipale, PC sécurité, superviseur) qui nécessite une vérification rapide d’images ?",
+            "Comment procédez vous pour authentifier un appel ou une demande liée à un événement observé ?",
+            "Comment traitez vous une situation où un individu tente de masquer ou de dégrader une caméra ?",
+            "Comment vérifiez vous qu’un événement observé n’est pas lié à une activité normale du site (livraison, travaux, nettoyage) ?",
+            "Comment appliquez vous une procédure d’escalade lorsque l’événement dépasse votre niveau d’autorisation ou de responsabilité ?"
+        ];
+
+        // --- INTERVIEWERS ---
+        const INTERVIEWERS = [
+            { id: 'rh_m', name: 'Paul Martin', gender: 'male', role: 'RH', avatar: 'https://picsum.photos/seed/paul/200/200' },
+            { id: 'rh_f', name: 'Sophie Durand', gender: 'female', role: 'RH', avatar: 'https://picsum.photos/seed/sophie/200/200' },
+            { id: 'tech_m', name: 'Thomas Leroy', gender: 'male', role: 'Technicien', avatar: 'https://picsum.photos/seed/thomas/200/200' },
+            { id: 'tech_f', name: 'Céline Dubois', gender: 'female', role: 'Technicien', avatar: 'https://picsum.photos/seed/celine/200/200' }
+        ];
+
+        const GENERIC_QUESTIONS = [
+            { audioPath: '', fallbackText: 'Bonjour, présentez-vous brièvement.' },
+            { audioPath: '', fallbackText: 'Pourquoi avez-vous choisi ce métier ?' },
+            { audioPath: '', fallbackText: 'Quelles sont vos principales qualités ?' }
+        ];
+
+        class AppManager {
+            constructor() {
+                this.currentMode = null;
+                this.selectedProfiles = [];
+                this.screens = document.querySelectorAll('.screen');
+            }
+            showScreen(id) {
+                this.screens.forEach(s => s.classList.remove('active'));
+                document.getElementById(id).classList.add('active');
+            }
+            goToModeSelection() {
+                const name = document.getElementById('user-name').value;
+                // Plus de vérification de métier, seulement le nom
+                if(!name.trim()) { showToast("Nom requis", "error"); return; }
+                this.showScreen('screen-mode');
+            }
+            selectMode(mode) {
+                this.currentMode = mode;
+                this.renderProfiles();
+                this.showScreen('screen-profile');
+            }
+            renderProfiles() {
+                const container = document.getElementById('profile-list');
+                container.innerHTML = '';
+                this.selectedProfiles = [];
+                
+                let availableProfiles = INTERVIEWERS;
+                if (this.currentMode === 'RH') availableProfiles = availableProfiles.filter(p => p.role === 'RH');
+                if (this.currentMode === 'TECH') availableProfiles = availableProfiles.filter(p => p.role === 'Technicien');
+
+                availableProfiles.forEach(profile => {
+                    const card = document.createElement('div');
+                    card.className = 'profile-card';
+                    card.onclick = () => this.toggleProfileSelection(profile.id, card);
+                    const roleClass = profile.role === 'RH' ? 'role-rh' : 'role-tech';
+                    card.innerHTML = `<span class="profile-role ${roleClass}">${profile.role}</span><img src="${profile.avatar}" class="avatar"><h3>${profile.name}</h3>`;
+                    container.appendChild(card);
+                });
+            }
+            toggleProfileSelection(id, card) {
+                const index = this.selectedProfiles.findIndex(p => p.id === id);
+                if (index > -1) { this.selectedProfiles.splice(index, 1); card.classList.remove('selected'); }
+                else { this.selectedProfiles.push(INTERVIEWERS.find(p => p.id === id)); card.classList.add('selected'); }
+                this.validateSelection();
+            }
+            validateSelection() {
+                const btn = document.getElementById('btn-start-interview');
+                const hasRh = this.selectedProfiles.some(p => p.role === 'RH');
+                const hasTech = this.selectedProfiles.some(p => p.role === 'Technicien');
+                
+                let valid = false;
+                if (this.currentMode === 'RH' && hasRh) valid = true;
+                if (this.currentMode === 'TECH' && hasTech) valid = true;
+                if (this.currentMode === 'MIX' && hasRh && hasTech) valid = true;
+                
+                btn.disabled = !valid;
+            }
+            startInterview() {
+                const userName = document.getElementById('user-name').value;
+                // MÉTIER FIGÉ : Opérateur en Vidéoprotection
+                const userJob = "Opérateur en Vidéoprotection";
+                interviewEngine.init(this.currentMode, this.selectedProfiles, userName, userJob);
+                this.showScreen('screen-arena');
+            }
+            stopAndReturn() {
+                if(confirm("Voulez-vous vraiment arrêter l'entretien ?")) {
+                    this.showScreen('screen-home');
+                }
+            }
+        }
+
+        class InterviewEngine {
+            constructor() {
+                this.queue = [];
+                this.currentIndex = 0;
+                this.userName = "";
+                this.userJob = "";
+                this.interviewData = []; 
+                this.isRecording = false;
+                this.timer = null;
+                this.seconds = 0;
+                this.currentInputMode = 'audio';
+                this.synth = window.speechSynthesis;
+                this.mediaRecorder = null;
+                this.chunks = []; 
+                this.currentBlob = null;
+                this.hasUsedText = false;
+                this.hasUsedAudio = false;
+                this.hasUsedVideo = false;
+                this.currentStream = null; 
+            }
+
+            async init(mode, profiles, userName, userJob) {
+                this.userName = userName;
+                this.userJob = userJob;
+                this.queue = [];
+                this.interviewData = [];
+                this.hasUsedText = false;
+                this.hasUsedAudio = false;
+                this.hasUsedVideo = false;
+
+                // Reset Text Area Listener
+                const textArea = document.getElementById('answer-text-area');
+                const newArea = textArea.cloneNode(true);
+                textArea.parentNode.replaceChild(newArea, textArea);
+                
+                newArea.addEventListener('input', () => {
+                    const btn = document.getElementById('btn-next-q');
+                    if (newArea.value.trim().length >= 20) {
+                        btn.disabled = false;
+                    } else {
+                        btn.disabled = true;
+                    }
+                });
+
+                // Vérification si c'est un job de sécurité (Toujours Vrai ici car métier figé)
+                const isSecurityJob = JOB_TITLES.includes(this.userJob);
+
+                if (isSecurityJob) {
+                    profiles.forEach(profile => {
+                        let specificQuestions = [];
+                        if (profile.role === 'RH') {
+                            specificQuestions = SECURITY_QUESTIONS_RH.map((text, i) => ({
+                                id: `sec_rh_${i}`,
+                                fallbackText: text,
+                                audioPath: ''
+                            }));
+                        } else if (profile.role === 'Technicien') {
+                            specificQuestions = SECURITY_QUESTIONS_TECH.map((text, i) => ({
+                                id: `sec_tech_${i}`,
+                                fallbackText: text,
+                                audioPath: ''
+                            }));
+                        }
+                        specificQuestions.forEach(q => this.queue.push({ ...q, interviewer: profile }));
+                    });
+                } else {
+                    // Fallback générique (ne devrait plus être utilisé)
+                    if (mode === 'MIX') {
+                        let allQuestions = [];
+                        profiles.forEach(p => {
+                            GENERIC_QUESTIONS.forEach(q => allQuestions.push({ ...q, interviewer: p }));
+                        });
+                        allQuestions.sort(() => Math.random() - 0.5);
+                        this.queue = allQuestions.slice(0, 5);
+                    } else {
+                        const profile = profiles[0];
+                        GENERIC_QUESTIONS.forEach(q => this.queue.push({ ...q, interviewer: profile }));
+                    }
+                }
+                
+                if (mode === 'MIX') this.queue.sort(() => Math.random() - 0.5);
+
+                this.currentIndex = 0;
+                this.updateProgress();
+                this.loadQuestion();
+            }
+
+            loadQuestion() {
+                if (this.currentIndex >= this.queue.length) { this.finishInterview(); return; }
+                const q = this.queue[this.currentIndex];
+                document.getElementById('stage-name').innerText = q.interviewer.name;
+                document.getElementById('stage-role').innerText = q.interviewer.role;
+                document.getElementById('stage-avatar').src = q.interviewer.avatar;
+                document.getElementById('question-text').innerText = `"${q.fallbackText}"`;
+                
+                const textArea = document.getElementById('answer-text-area');
+                textArea.value = "";
+                document.getElementById('btn-next-q').disabled = true;
+                this.stopRecording(); 
+                this.stopVideoPreview(); 
+                this.setInputMode('audio'); 
+                
+                this.updateProgress();
+                this.playAudio(q);
+            }
+
+            playAudio(q) {
+                document.getElementById('interview-stage').classList.add('speaking');
+                document.getElementById('status-message').innerText = "L'interlocuteur pose une question...";
+
+                const onEnd = () => {
+                    document.getElementById('interview-stage').classList.remove('speaking');
+                    document.getElementById('status-message').innerText = "Votre tour ! Choisissez votre mode de réponse.";
+                };
+                if (q.audioPath) {
+                    const player = document.getElementById('audio-player');
+                    player.src = q.audioPath;
+                    player.onended = onEnd;
+                    player.play().catch(() => this.speak(q.fallbackText, onEnd, q.interviewer));
+                } else {
+                    this.speak(q.fallbackText, onEnd, q.interviewer);
+                }
+            }
+
+            speak(text, callback, interviewer) {
+                if (this.synth.speaking) this.synth.cancel();
+                const ut = new SpeechSynthesisUtterance(text);
+                ut.lang = 'fr-FR';
+                
+                if (interviewer && window.speechSynthesis.onvoiceschanged !== undefined) {
+                    const voices = this.synth.getVoices();
+                    const gender = interviewer.gender; 
+                    const matchingVoice = voices.find(v => {
+                        if (!v.lang.includes('fr')) return false;
+                        const name = v.name.toLowerCase();
+                        if (gender === 'male') return name.includes('male') || name.includes('homme') || name.includes('thomas') || name.includes('paul');
+                        if (gender === 'female') return name.includes('female') || name.includes('femme') || name.includes('julie') || name.includes('sophie');
+                        return false;
+                    });
+                    if (matchingVoice) ut.voice = matchingVoice;
+                }
+
+                ut.onend = callback;
+                this.synth.speak(ut);
+            }
+
+            replayQuestion() {
+                this.synth.cancel();
+                document.getElementById('audio-player').pause();
+                document.getElementById('audio-player').currentTime = 0;
+                this.playAudio(this.queue[this.currentIndex]);
+            }
+
+            async startVideoPreview() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    this.currentStream = stream;
+                    const videoPreview = document.getElementById('webcam-preview');
+                    videoPreview.srcObject = stream;
+                    videoPreview.style.display = 'block'; 
+                    await videoPreview.play();
+                } catch (err) {
+                    console.error(err);
+                    showToast("Erreur Caméra : " + err.message, "error");
+                }
+            }
+
+            stopVideoPreview() {
+                if(this.currentStream) {
+                    this.currentStream.getTracks().forEach(track => track.stop());
+                    this.currentStream = null;
+                }
+                const vp = document.getElementById('webcam-preview');
+                vp.srcObject = null;
+                vp.style.display = 'none';
+            }
+
+            async setInputMode(mode) {
+                this.stopRecording(); 
+                
+                if (this.currentInputMode === 'video' && mode !== 'video') {
+                    this.stopVideoPreview();
+                }
+
+                this.currentInputMode = mode;
+                const recorderContainer = document.getElementById('recorder-container');
+                const textContainer = document.getElementById('text-input-ui');
+
+                document.getElementById('mode-audio-btn').classList.remove('active');
+                document.getElementById('mode-video-btn').classList.remove('active');
+                document.getElementById('mode-text-btn').classList.remove('active');
+                document.getElementById(`mode-${mode}-btn`).classList.add('active');
+
+                if (mode === 'text') {
+                    recorderContainer.classList.remove('active');
+                    textContainer.classList.add('active');
+                    document.getElementById('status-message').innerText = "Saisissez votre réponse.";
+                    const textArea = document.getElementById('answer-text-area');
+                    document.getElementById('btn-next-q').disabled = textArea.value.trim().length < 20;
+                } else {
+                    textContainer.classList.remove('active');
+                    recorderContainer.classList.add('active');
+
+                    if (mode === 'video') {
+                        document.getElementById('status-message').innerText = "Chargement de la caméra...";
+                        await this.startVideoPreview();
+                        document.getElementById('status-message').innerText = "Cliquez sur le bouton rouge pour enregistrer.";
+                    } else {
+                        document.getElementById('webcam-preview').style.display = 'none';
+                        document.getElementById('status-message').innerText = "Cliquez sur le micro pour enregistrer.";
+                        this.currentStream = null; 
+                    }
+                }
+                document.getElementById('btn-next-q').disabled = true;
+            }
+
+            async startRecording() {
+                try {
+                    let streamToUse = this.currentStream;
+
+                    if (this.currentInputMode === 'audio') {
+                        if (!streamToUse || streamToUse.getVideoTracks().length > 0) {
+                            streamToUse = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            this.currentStream = streamToUse; 
+                        }
+                    }
+                    else if (this.currentInputMode === 'video') {
+                        if (!streamToUse) {
+                            showToast("Erreur: Caméra non initialisée. Réessayez.", "error");
+                            return;
+                        }
+                    }
+
+                    let options = { mimeType: 'audio/webm' };
+                    if (this.currentInputMode === 'video') {
+                        options = { mimeType: 'video/webm;codecs=vp9' };
+                        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                            options = { mimeType: 'video/webm' }; 
+                        }
+                    } else {
+                        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                            options = { mimeType: 'audio/ogg' }; 
+                        }
+                    }
+
+                    this.mediaRecorder = new MediaRecorder(streamToUse, options);
+                    this.chunks = [];
+
+                    this.mediaRecorder.ondataavailable = event => {
+                        if (event.data.size > 0) this.chunks.push(event.data);
+                    };
+
+                    this.mediaRecorder.onstop = () => {
+                        const mimeType = this.currentInputMode === 'video' ? 'video/webm' : 'audio/webm';
+                        this.currentBlob = new Blob(this.chunks, { type: mimeType });
+                        
+                        document.getElementById('btn-next-q').disabled = false;
+                        document.getElementById('status-message').innerText = "Enregistrement terminé. Vous pouvez valider.";
+                    };
+
+                    this.mediaRecorder.start();
+                    this.isRecording = true;
+                    this.seconds = 0;
+                    document.getElementById('record-btn').classList.add('recording');
+                    document.getElementById('timer').innerText = "00:00";
+                    document.getElementById('btn-next-q').disabled = true; 
+                    document.getElementById('status-message').innerText = "Enregistrement en cours...";
+                    
+                    this.timer = setInterval(() => {
+                        this.seconds++;
+                        const m = Math.floor(this.seconds/60).toString().padStart(2,'0');
+                        const s = (this.seconds%60).toString().padStart(2,'0');
+                        document.getElementById('timer').innerText = `${m}:${s}`;
+                    }, 1000);
+
+                } catch (err) {
+                    console.error(err);
+                    showToast("Erreur enregistrement: " + err.message, "error");
+                }
+            }
+
+            stopRecording() {
+                if(!this.isRecording || !this.mediaRecorder) return;
+                this.mediaRecorder.stop();
+                this.isRecording = false;
+                clearInterval(this.timer);
+                document.getElementById('record-btn').classList.remove('recording');
+            }
+
+            toggleRecording() {
+                if(this.isRecording) this.stopRecording();
+                else this.startRecording();
+            }
+
+            submitAnswer() {
+                const currentQ = this.queue[this.currentIndex];
+                let answerContent = "";
+                let type = "";
+                
+                if (this.currentInputMode === 'text') {
+                    const textVal = document.getElementById('answer-text-area').value;
+                    if (textVal.trim().length < 20) { showToast("Réponse trop courte.", "error"); return; }
+                    answerContent = textVal;
+                    type = "text";
+                    this.hasUsedText = true;
+                } else if (this.currentInputMode === 'audio') {
+                    if (this.isRecording) { showToast("Arrêtez l'enregistrement.", "error"); return; }
+                    if (!this.currentBlob) { showToast("Aucun enregistrement audio.", "error"); return; }
+                    answerContent = "Réponse Audio enregistrée"; 
+                    type = "audio";
+                    this.hasUsedAudio = true;
+                } else if (this.currentInputMode === 'video') {
+                    if (this.isRecording) { showToast("Arrêtez l'enregistrement.", "error"); return; }
+                    if (!this.currentBlob) { showToast("Aucun enregistrement vidéo.", "error"); return; }
+                    answerContent = "Réponse Vidéo enregistrée"; 
+                    type = "video";
+                    this.hasUsedVideo = true;
+                }
+                
+                this.interviewData.push({
+                    question: currentQ.fallbackText,
+                    interviewer: currentQ.interviewer.name,
+                    type: type,
+                    content: answerContent,
+                    blob: this.currentBlob
+                });
+                
+                this.currentIndex++;
+                this.loadQuestion();
+            }
+
+            updateProgress() {
+                const pct = (this.currentIndex / this.queue.length) * 100;
+                document.getElementById('progress-fill').style.width = `${pct}%`;
+                document.getElementById('q-progress').innerText = `${this.currentIndex + 1}/${this.queue.length}`;
+            }
+
+            finishInterview() {
+                this.stopRecording();
+                this.stopVideoPreview();
+                document.getElementById('res-job').innerText = this.userJob;
+                document.getElementById('res-mode').innerText = app.currentMode;
+                document.getElementById('res-count').innerText = this.interviewData.length;
+                const actionsDiv = document.querySelector('.result-actions');
+                actionsDiv.innerHTML = '';
+                
+                // Bouton PDF Révision
+                const btnPrep = document.createElement('button'); 
+                btnPrep.className = 'btn btn-primary'; 
+                btnPrep.innerText = '📄 PDF Révision'; 
+                btnPrep.onclick = () => this.downloadPreparationPDF(); 
+                actionsDiv.appendChild(btnPrep);
+
+                if (this.hasUsedText) {
+                    const btn = document.createElement('button'); btn.className = 'btn btn-secondary'; btn.innerText = '📄 PDF Mes Réponses'; btn.onclick = () => this.downloadPDF(); actionsDiv.appendChild(btn);
+                }
+                if (this.hasUsedAudio || this.hasUsedVideo) {
+                    const btnZip = document.createElement('button'); btnZip.className = 'btn btn-secondary'; btnZip.style.background = '#4F46E5'; btnZip.style.color = 'white'; btnZip.innerText = '📥 Télécharger ZIP'; btnZip.onclick = () => this.downloadZip(); actionsDiv.appendChild(btnZip);
+                }
+                app.showScreen('screen-results');
+            }
+
+            downloadPDF() {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                doc.setFontSize(22); doc.setTextColor(79, 70, 229);
+                doc.text("Rapport d'Entretien Simulé", 105, 20, null, null, null, "center");
+                doc.setFontSize(12); doc.setTextColor(50, 50, 50);
+                doc.text(`Candidat : ${this.userName}`, 20, 35);
+                doc.text(`Métier : ${this.userJob}`, 20, 42);
+                doc.text(`Date : ${new Date().toLocaleDateString()}`, 20, 49);
+                
+                let y = 65;
+                const pageHeight = doc.internal.pageSize.height;
+                
+                this.interviewData.forEach((item, index) => {
+                    if (item.type !== 'text') return;
+                    if (y > pageHeight - 50) { doc.addPage(); y = 20; }
+                    doc.setFont("helvetica", "bold"); doc.text(`Q${index + 1} (${item.interviewer}) :`, 20, y);
+                    y += 7;
+                    doc.setFont("helvetica", "normal");
+                    const qLines = doc.splitTextToSize(item.question, 170);
+                    doc.text(qLines, 20, y); y += (qLines.length * 6) + 5;
+                    doc.setFont("helvetica", "bold"); doc.setTextColor(16, 185, 129); doc.text("Réponse :", 20, y);
+                    y += 7;
+                    doc.setFont("helvetica", "normal"); doc.setTextColor(60, 60, 60);
+                    const aLines = doc.splitTextToSize(item.content, 170);
+                    doc.text(aLines, 20, y); y += (aLines.length * 6) + 15;
+                });
+                doc.save(`Entretien_${this.userName}.pdf`);
+                showToast("PDF généré !");
+            }
+            
+            downloadPreparationPDF() {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                const fontSize = 8; 
+                const lineHeight = 4;
+                const margin = 15;
+                const contentWidth = doc.internal.pageSize.getWidth() - (margin * 2);
+
+                doc.setFontSize(14);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(79, 70, 229);
+                doc.text("Préparation Entretien - Opérateur en Vidéoprotection", margin, 15);
+
+                let y = 25;
+
+                // --- NOUVELLES DONNÉES RH ---
+                const rhData = [
+                    {q:"1. Qu’est ce qui vous a motivé à vous orienter vers la vidéoprotection plutôt qu’un autre métier de la sécurité ?", obj:"comprendre la motivation réelle et la capacité à se projeter dans un métier d’observation continue."},
+                    {q:"2. Comment décririez vous votre capacité à rester concentré pendant de longues périodes devant des écrans ?", obj:"évaluer la vigilance, la résistance à la monotonie et l’autodiscipline."},
+                    {q:"3. Comment réagissez vous lorsque vous êtes confronté à une situation sensible ou potentiellement choquante sur les images ?", obj:"mesurer la stabilité émotionnelle et la gestion du stress."},
+                    {q:"4. Pouvez vous me parler d’une situation où vous avez dû faire preuve d’un grand sens de l’observation ?", obj:"identifier les compétences naturelles d’analyse visuelle."},
+                    {q:"5. Comment vous assurez vous de respecter des règles strictes de confidentialité et de discrétion ?", obj:"vérifier la conscience des enjeux éthiques et légaux."},
+                    {q:"6. Comment travaillez vous en équipe dans un environnement où chacun dépend de la vigilance des autres ?", obj:"évaluer la coopération, la communication et la fiabilité."},
+                    {q:"7. Comment réagissez vous lorsqu’une consigne change ou qu’une nouvelle procédure est mise en place ?", obj:"tester l’adaptabilité et la discipline."},
+                    {q:"8. Comment gérez vous une situation où vous avez un doute sur ce que vous observez ?", obj:"mesurer la prudence, la capacité à demander confirmation et à ne pas improviser."},
+                    {q:"9. Qu’attendez vous de votre premier employeur en vidéoprotection ?", obj:"comprendre les attentes, la maturité et la capacité à s’intégrer."},
+                    {q:"10. Quels sont, selon vous, les comportements indispensables pour travailler en vidéoprotection ?", obj:"vérifier la compréhension des exigences du métier : vigilance, neutralité, rigueur, éthique."}
+                ];
+
+                // --- NOUVELLES DONNÉES TECHNIQUES ---
+                const techData = [
+                    {q:"1. Comment procédez vous pour analyser une image en temps réel afin de détecter une anomalie ?", obj:"vérifier la méthode d’observation, la capacité à repérer des détails, à analyser une scène et à rester focalisé."},
+                    {q:"2. Quels sont les éléments visuels que vous vérifiez en priorité lorsqu’une situation semble suspecte ?", obj:"évaluer la capacité à identifier les signaux faibles : comportements, objets, déplacements, incohérences."},
+                    {q:"3. Comment distinguez vous un comportement inhabituel d’un comportement réellement dangereux ?", obj:"mesurer la capacité d’analyse comportementale et la maîtrise du principe de proportionnalité."},
+                    {q:"4. Que faites vous si une caméra présente un angle mort ou une zone non visible ?", obj:"vérifier la capacité à compenser : changement de caméra, recoupement, signalement technique."},
+                    {q:"5. Comment procédez vous pour recouper des informations entre plusieurs caméras ?", obj:"tester la logique spatiale, la maîtrise du plan de site et la capacité à suivre une scène."},
+                    {q:"6. Comment gérez vous plusieurs flux vidéo simultanés lors d’un événement en cours ?", obj:"évaluer la gestion du multi flux, la priorisation et la résistance au stress."},
+                    {q:"7. Comment vérifiez vous la cohérence entre ce que vous observez et les informations reçues (appel, alarme, signalement) ?", obj:"mesurer la capacité à croiser les sources et à éviter les erreurs d’interprétation."},
+                    {q:"8. Comment procédez vous pour suivre un individu ou un véhicule sur plusieurs caméras ?", obj:"vérifier la maîtrise du tracking vidéo, du plan de caméras et de la continuité d’observation."},
+                    {q:"9. Que faites vous si vous observez un acte potentiellement délictueux mais sans certitude absolue ?", obj:"évaluer la prudence, la capacité à signaler sans sur interpréter, et le respect des procédures."},
+                    {q:"10. Comment structurez vous un signalement destiné aux forces de l’ordre ou à une équipe d’intervention ?", obj:"vérifier la précision, la concision, l’ordre logique et la pertinence des informations."},
+                    {q:"11. Comment rédigez vous une main courante vidéo pour qu’elle soit exploitable par la relève ou la hiérarchie ?", obj:"mesurer la rigueur : faits, heures, actions, observations, sans jugement ni omission."},
+                    {q:"12. Comment gérez vous une situation où plusieurs événements se produisent en même temps sur différents secteurs ?", obj:"tester la priorisation, la gestion du stress et la capacité à maintenir une vision globale."},
+                    {q:"13. Comment procédez vous pour vérifier qu’un site est revenu à un état normal après un incident ?", obj:"évaluer la capacité à confirmer la fin d’événement : observation, cohérence, stabilité."},
+                    {q:"14. Comment identifiez vous un dysfonctionnement technique sur une caméra (image dégradée, latence, perte de signal) ?", obj:"vérifier la capacité à diagnostiquer un problème et à le signaler correctement."},
+                    {q:"15. Comment adaptez vous votre analyse lorsque la visibilité est réduite (nuit, pluie, contre jour) ?", obj:"mesurer l’adaptabilité et la capacité à ajuster son observation selon les conditions."},
+                    {q:"16. Comment gérez vous une demande d’un partenaire (police municipale, PC sécurité, superviseur) qui nécessite une vérification rapide d’images ?", obj:"tester la réactivité, la précision et la capacité à prioriser une demande externe."},
+                    {q:"17. Comment procédez vous pour authentifier un appel ou une demande liée à un événement observé ?", obj:"vérifier la maîtrise des protocoles d’identification et la sécurité des échanges."},
+                    {q:"18. Comment traitez vous une situation où un individu tente de masquer ou de dégrader une caméra ?", obj:"évaluer la vigilance, la rapidité d’analyse et la capacité à déclencher les actions prévues."},
+                    {q:"19. Comment vérifiez vous qu’un événement observé n’est pas lié à une activité normale du site (livraison, travaux, nettoyage) ?", obj:"mesurer la capacité à contextualiser et à éviter les fausses alertes."},
+                    {q:"20. Comment appliquez vous une procédure d’escalade lorsque l’événement dépasse votre niveau d’autorisation ou de responsabilité ?", obj:"vérifier la discipline, la connaissance de la hiérarchie opérationnelle et la capacité à ne pas improviser."}
+                ];
+
+                const addSection = (title, data) => {
+                    doc.setFont("helvetica", "bold");
+                    doc.setTextColor(79, 70, 229);
+                    doc.setFontSize(11);
+                    doc.text(title, margin, y);
+                    y += 6;
+                    doc.setTextColor(0,0,0);
+
+                    data.forEach((item, i) => {
+                        if (y > 275) { doc.addPage(); y = 15; }
+                        doc.setFontSize(fontSize);
+                        doc.setFont("helvetica", "bold");
+                        doc.text(`${item.q}`, margin, y); 
+                        y += lineHeight;
+                        doc.setFont("helvetica", "normal");
+                        doc.setTextColor(60, 60, 60);
+                        const lines = doc.splitTextToSize(`Objectif : ${item.obj}`, contentWidth);
+                        doc.text(lines, margin, y);
+                        y += (lines.length * 3.5) + 2;
+                    });
+                };
+
+                addSection("Question RH", rhData);
+                if(y > 250) { doc.addPage(); y = 15; }
+                addSection("Question Technique", techData);
+
+                doc.save("Preparation_Entretien_Videoprotection.pdf");
+                showToast("PDF Révision généré !");
+            }
+
+            downloadZip() {
+                const zip = new JSZip();
+                this.interviewData.forEach((item, index) => {
+                    if ((item.type === 'audio' || item.type === 'video') && item.blob) {
+                        const ext = item.type === 'video' ? 'webm' : 'webm';
+                        zip.file(`Q${index+1}_${item.interviewer}.${ext}`, item.blob);
+                    }
+                });
+                zip.generateAsync({type:"blob"}).then(content => saveAs(content, `Entretien_${this.userName}.zip`));
+                showToast("ZIP généré !");
+            }
+        }
+
+        function showToast(msg, type='info') {
+            const c = document.getElementById('toast-container');
+            const t = document.createElement('div');
+            t.className = 'toast';
+            t.style.borderLeftColor = type==='error'?'var(--danger)':'var(--primary)';
+            t.innerHTML = `<span>${msg}</span>`;
+            c.appendChild(t);
+            setTimeout(() => { t.style.opacity=0; setTimeout(()=>t.remove(),300); }, 3000);
+        }
+
+        const app = new AppManager();
+        const interviewEngine = new InterviewEngine();
+
+        // --- CHEAT CODE : "mog" ---
+        let cheatCode = '';
+        document.addEventListener('keydown', (e) => {
+            cheatCode += e.key.toLowerCase();
+            // On garde seulement les 3 derniers caractères tapés
+            if (cheatCode.length > 3) {
+                cheatCode = cheatCode.substring(cheatCode.length - 3);
+            }
+            if (cheatCode === 'mog') {
+                console.log("Cheat Activated: Fin d'entretien");
+                interviewEngine.finishInterview();
+                cheatCode = ''; // Reset pour éviter le re-déclenchement immédiat
+            }
+        });
+
+        window.onload = function() {
+            // Plus besoin de remplir le selecteur de métier
+        };
+    </script>
+</body>
+</html>
